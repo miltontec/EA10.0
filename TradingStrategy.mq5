@@ -2229,6 +2229,11 @@ void ProcessExecutingOrder()
                             break;
                         }
                     }
+
+                    // CRÍTICO FIX: Capturar votos para cada orden adicional también
+                    // Sin esto, las órdenes adicionales NO se encuentran en g_enhancedTrades[]
+                    // y sus métricas NUNCA se actualizan
+                    CaptureVotesForEnhancedSystem(executedTicket);
                 }
 
                 Print("✓ Orden adicional ejecutada");
