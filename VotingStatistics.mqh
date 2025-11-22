@@ -846,7 +846,8 @@ public:
         m_performanceMatrix[indicatorId][ses][vol][dir].UpdateExpertiseLevel();
         
         // Actualizar hora de entrada
-        int hour = TimeHour(TimeCurrent());
+        datetime currentTime = TimeCurrent();
+        int hour = TimeHour(currentTime);
         if(won) {
             m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] =
                 (m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] + 1.0) / 2.0;
