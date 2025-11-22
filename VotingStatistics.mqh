@@ -843,7 +843,7 @@ public:
         m_performanceMatrix[indicatorId][ses][vol][dir].metrics.UpdateMetrics(vote, won, profit, bars, mae, mfe);
         m_performanceMatrix[indicatorId][ses][vol][dir].sampleSize++;
         m_performanceMatrix[indicatorId][ses][vol][dir].lastUpdate = TimeCurrent();
-        m_performanceMatrix[indicatorId][ses][vol][dir].UpdateExpertiseLevel();
+        //         m_performanceMatrix[indicatorId][ses][vol][dir].UpdateExpertiseLevel();
         
         // Actualizar hora de entrada
         datetime currentTime = TimeCurrent();
