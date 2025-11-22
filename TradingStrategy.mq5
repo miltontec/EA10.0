@@ -1105,6 +1105,14 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
             Print("      [", i, "] Ticket guardado: ", g_enhancedTrades[i].ticket);
         }
 
+        // CRÍTICO: Evitar procesar el mismo deal múltiples veces
+        static ulong lastProcessedDeal = 0;
+        if(trans.deal == lastProcessedDeal)
+        {
+            Print("   ⏭ Deal ", trans.deal, " ya procesado - IGNORANDO duplicado");
+            return;
+        }
+
         // Buscar si este deal corresponde a un trade que trackeamos
         EnhancedTradeInfo closedTrade;
         if(FindAndRemoveTradeInfo(trans.position, closedTrade))
@@ -1116,65 +1124,63 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 
             Print("   💰 Profit: ", profit, " | Won: ", won);
 
-                // Calcular métricas
-                int bars = (int)((TimeCurrent() - closedTrade.openTime) / PeriodSeconds(PERIOD_CURRENT));
+            // Calcular métricas
+            int bars = (int)((TimeCurrent() - closedTrade.openTime) / PeriodSeconds(PERIOD_CURRENT));
 
-                // MAE y MFE simplificados
-                double mae = 0.0;
-                double mfe = MathAbs(profit);
+            // MAE y MFE simplificados
+            double mae = 0.0;
+            double mfe = MathAbs(profit);
 
-                if(profit < 0) {
-                    mae = MathAbs(profit) * 1.5;
-                } else {
-                    mae = MathAbs(profit) * 0.3;
-                }
-
-                // Actualizar performance de cada indicador que votó
-                Print("   📊 Actualizando métricas para 8 indicadores...");
-                int indicatorsUpdated = 0;
-
-                for(int i = 0; i < 8; i++)
-                {
-                    Print("      Indicador [", i, "] Vote:", EnumToString(closedTrade.votes[i]),
-                          " Conf:", closedTrade.confidences[i]);
-
-                    if(closedTrade.votes[i] != VOTE_NEUTRAL && closedTrade.confidences[i] > 0.05)
-                    {
-                        Print("      ✅ Llamando UpdatePerformance para indicador ", i);
-
-                        g_votingStats.UpdatePerformance(
-                            i,                      // ID del indicador
-                            closedTrade.context,    // Contexto
-                            closedTrade.votes[i],   // Voto
-                            won,                    // Si ganó
-                            profit,                 // Profit
-                            bars,                   // Duración
-                            mae,                    // MAE
-                            mfe                     // MFE
-                        );
-
-                        indicatorsUpdated++;
-                    }
-                    else
-                    {
-                        Print("      ⏭ Indicador ", i, " omitido (neutral o confianza baja)");
-                    }
-                }
-
-                Print("   ✅ Métricas actualizadas para ", indicatorsUpdated, " indicadores");
-
-                // Mostrar estadísticas cada 10 trades
-                static int tradeCount = 0;
-                tradeCount++;
-                if(tradeCount % 10 == 0)
-                {
-                    Print("\n", g_votingStats.GetSystemStatistics());
-                }
+            if(profit < 0) {
+                mae = MathAbs(profit) * 1.5;
+            } else {
+                mae = MathAbs(profit) * 0.3;
             }
-            else
+
+            // Actualizar performance de cada indicador que votó
+            Print("   📊 Actualizando métricas para 8 indicadores...");
+            int indicatorsUpdated = 0;
+
+            for(int i = 0; i < 8; i++)
             {
-                Print("   ❌ HistoryDealSelect falló para deal: ", trans.deal);
+                Print("      Indicador [", i, "] Vote:", EnumToString(closedTrade.votes[i]),
+                      " Conf:", closedTrade.confidences[i]);
+
+                if(closedTrade.votes[i] != VOTE_NEUTRAL && closedTrade.confidences[i] > 0.05)
+                {
+                    Print("      ✅ Llamando UpdatePerformance para indicador ", i);
+
+                    g_votingStats.UpdatePerformance(
+                        i,                      // ID del indicador
+                        closedTrade.context,    // Contexto
+                        closedTrade.votes[i],   // Voto
+                        won,                    // Si ganó
+                        profit,                 // Profit
+                        bars,                   // Duración
+                        mae,                    // MAE
+                        mfe                     // MFE
+                    );
+
+                    indicatorsUpdated++;
+                }
+                else
+                {
+                    Print("      ⏭ Indicador ", i, " omitido (neutral o confianza baja)");
+                }
             }
+
+            Print("   ✅ Métricas actualizadas para ", indicatorsUpdated, " indicadores");
+
+            // Mostrar estadísticas cada 10 trades
+            static int tradeCount = 0;
+            tradeCount++;
+            if(tradeCount % 10 == 0)
+            {
+                Print("\n", g_votingStats.GetSystemStatistics());
+            }
+
+            // Marcar como procesado
+            lastProcessedDeal = trans.deal;
         }
         else
         {
