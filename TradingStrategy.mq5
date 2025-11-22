@@ -149,18 +149,6 @@ struct TradeResult
 };
 
 //+------------------------------------------------------------------+
-//| ESTRUCTURA MarketEmotion para análisis emocional del mercado   |
-//+------------------------------------------------------------------+
-struct MarketEmotion
-{
-    double fear;
-    double greed;
-    double uncertainty;
-    double excitement;
-    datetime timestamp;
-};
-
-//+------------------------------------------------------------------+
 //| ESTRUCTURA DecisionContext para contexto de decisiones         |
 //+------------------------------------------------------------------+
 struct DecisionContext
@@ -176,21 +164,6 @@ struct DecisionContext
     double greed_level;
     int active_orders;
     ENUM_VOTE_DIRECTION locked_direction;
-};
-
-//+------------------------------------------------------------------+
-//| ESTRUCTURA NeuralConsensusResult para resultado de consenso    |
-//+------------------------------------------------------------------+
-struct NeuralConsensusResult
-{
-    ulong consensus_id;
-    ENUM_VOTE_DIRECTION final_direction;
-    double total_conviction;
-    double consensus_strength;
-    bool strong_consensus;
-    string leading_agent;
-    bool veto_used;
-    string consensus_reasoning;
 };
 
 //+------------------------------------------------------------------+
@@ -503,12 +476,9 @@ void CaptureEnhancedMarketContext(EnhancedMarketContext &context) {
 
     // Régimen de mercado
     if(g_regimeDetector != NULL) {
-        RegimeInfo regimeInfo;
-        if(g_regimeDetector.GetCurrentRegime(regimeInfo)) {
-            context.regime = regimeInfo.regime;
-            context.regimeConfidence = regimeInfo.confidence;
-            context.regimeAge = regimeInfo.barsInRegime;
-        }
+        context.regime = g_regimeDetector.GetCurrentRegime();
+        context.regimeConfidence = 0.8; // Valor por defecto
+        context.regimeAge = 0;          // Valor por defecto
     } else {
         context.regime = REGIME_RANGING;
         context.regimeConfidence = 0.5;

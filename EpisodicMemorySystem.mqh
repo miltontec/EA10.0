@@ -382,8 +382,8 @@ for(int i = 0; i < 8; i++)
         newEpisode.initialPattern.emotional_context = consensus.emotional_score;
         newEpisode.initialPattern.agent_agreement = consensus.agreement_level;
         newEpisode.initialPattern.dissenting_agents = 5 - consensus.agent_count;
-        newEpisode.initialPattern.fear_level = neural.market_emotion.fear;
-        newEpisode.initialPattern.greed_level = neural.market_emotion.greed;
+        newEpisode.initialPattern.fear_level = consensus.emotional_score; // Usar emotional_score como proxy
+        newEpisode.initialPattern.greed_level = 1.0 - consensus.emotional_score;
         newEpisode.initialPattern.consensus_id = consensus.consensus_id;
         newEpisode.initialPattern.order_ticket = 0;
         
@@ -990,17 +990,17 @@ private:
         FileWriteInteger(handle, consensus.negotiation_rounds);
         FileWriteString(handle, consensus.dominant_agent);
         FileWriteDouble(handle, consensus.agreement_level);
-        FileWriteDouble(handle, consensus.profit_points);
-        FileWriteInteger(handle, consensus.duration_bars);
-        FileWriteDouble(handle, consensus.max_favorable_excursion);
-        FileWriteDouble(handle, consensus.max_adverse_excursion);
-        
-        // Arrays
+        FileWriteDouble(handle, consensus.profit_result);  // Usar profit_result en lugar de profit_points
+        FileWriteInteger(handle, 0);  // duration_bars - campo no existe, usar 0
+        FileWriteDouble(handle, 0.0); // max_favorable_excursion - campo no existe
+        FileWriteDouble(handle, 0.0); // max_adverse_excursion - campo no existe
+
+        // Arrays - campos no existen en ConsensusMemory, usar valores por defecto
         for(int i = 0; i < 5; i++)
         {
-            FileWriteString(handle, consensus.participating_agents[i]);
-            FileWriteDouble(handle, consensus.agent_confidences[i]);
-            FileWriteInteger(handle, consensus.agent_votes[i]);
+            FileWriteString(handle, "");  // participating_agents
+            FileWriteDouble(handle, 0.0); // agent_confidences
+            FileWriteInteger(handle, 0);  // agent_votes
         }
     }
     
@@ -1009,20 +1009,20 @@ private:
         FileWriteInteger(handle, neural.final_direction);
         FileWriteDouble(handle, neural.consensus_strength);
         FileWriteDouble(handle, neural.total_conviction);
-        FileWriteDouble(handle, neural.negotiation_rounds);
+        FileWriteDouble(handle, 0.0); // negotiation_rounds - campo no existe
         FileWriteString(handle, neural.consensus_reasoning);
         FileWriteInteger(handle, neural.strong_consensus ? 1 : 0);
-        FileWriteInteger(handle, neural.dissenting_agents);
+        FileWriteInteger(handle, 0);  // dissenting_agents - campo no existe
         FileWriteString(handle, neural.leading_agent);
-        FileWriteDouble(handle, neural.leadership_strength);
+        FileWriteDouble(handle, 0.0); // leadership_strength - campo no existe
         FileWriteInteger(handle, neural.veto_used ? 1 : 0);
         FileWriteLong(handle, neural.consensus_id);
-        
-        // Market emotion
-        FileWriteDouble(handle, neural.market_emotion.fear);
-        FileWriteDouble(handle, neural.market_emotion.greed);
-        FileWriteDouble(handle, neural.market_emotion.uncertainty);
-        FileWriteDouble(handle, neural.market_emotion.excitement);
+
+        // Market emotion - campos no existen, usar 0.0
+        FileWriteDouble(handle, 0.0); // fear
+        FileWriteDouble(handle, 0.0); // greed
+        FileWriteDouble(handle, 0.0); // uncertainty
+        FileWriteDouble(handle, 0.0); // excitement
     }
     
     void WriteTradeRecord(int handle, CompleteTradeRecord &record)
@@ -1272,17 +1272,17 @@ private:
         consensus.negotiation_rounds = FileReadInteger(handle);
         consensus.dominant_agent = FileReadString(handle);
         consensus.agreement_level = FileReadDouble(handle);
-        consensus.profit_points = FileReadDouble(handle);
-        consensus.duration_bars = FileReadInteger(handle);
-        consensus.max_favorable_excursion = FileReadDouble(handle);
-        consensus.max_adverse_excursion = FileReadDouble(handle);
-        
-        // Arrays
+        FileReadDouble(handle); // profit_points - descartado, campo no existe
+        FileReadInteger(handle); // duration_bars - descartado
+        FileReadDouble(handle); // max_favorable_excursion - descartado
+        FileReadDouble(handle); // max_adverse_excursion - descartado
+
+        // Arrays - leer pero descartar, campos no existen
         for(int i = 0; i < 5; i++)
         {
-            consensus.participating_agents[i] = FileReadString(handle);
-            consensus.agent_confidences[i] = FileReadDouble(handle);
-            consensus.agent_votes[i] = (ENUM_VOTE_DIRECTION)FileReadInteger(handle);
+            FileReadString(handle);  // participating_agents - descartado
+            FileReadDouble(handle);  // agent_confidences - descartado
+            FileReadInteger(handle); // agent_votes - descartado
         }
         
         return true;
@@ -1295,20 +1295,20 @@ private:
         neural.final_direction = (ENUM_VOTE_DIRECTION)FileReadInteger(handle);
         neural.consensus_strength = FileReadDouble(handle);
         neural.total_conviction = FileReadDouble(handle);
-        neural.negotiation_rounds = FileReadDouble(handle);
+        FileReadDouble(handle); // negotiation_rounds - descartado
         neural.consensus_reasoning = FileReadString(handle);
         neural.strong_consensus = (FileReadInteger(handle) == 1);
-        neural.dissenting_agents = FileReadInteger(handle);
+        FileReadInteger(handle); // dissenting_agents - descartado
         neural.leading_agent = FileReadString(handle);
-        neural.leadership_strength = FileReadDouble(handle);
+        FileReadDouble(handle); // leadership_strength - descartado
         neural.veto_used = (FileReadInteger(handle) == 1);
         neural.consensus_id = (ulong)FileReadLong(handle);
-        
-        // Market emotion
-        neural.market_emotion.fear = FileReadDouble(handle);
-        neural.market_emotion.greed = FileReadDouble(handle);
-        neural.market_emotion.uncertainty = FileReadDouble(handle);
-        neural.market_emotion.excitement = FileReadDouble(handle);
+
+        // Market emotion - leer pero descartar, campos no existen
+        FileReadDouble(handle); // fear
+        FileReadDouble(handle); // greed
+        FileReadDouble(handle); // uncertainty
+        FileReadDouble(handle); // excitement
         
         return true;
     }

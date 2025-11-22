@@ -967,8 +967,8 @@ public:
         string stats = "═══════════════════════════════════════════════\n";
         stats += "   SISTEMA DE VOTACIÓN ADAPTATIVO ENHANCED v5.0\n";
         stats += "═══════════════════════════════════════════════\n\n";
-        
-        stats += StringFormat("📊 ESTADÍSTICAS GLOBALES\n");
+
+        stats += "📊 ESTADÍSTICAS GLOBALES\n";
         stats += StringFormat("├─ Total Trades: %d\n", m_totalSystemTrades);
         stats += StringFormat("├─ Win Rate Global: %.1f%%\n", m_systemWinRate * 100);
         stats += StringFormat("├─ Profit Total: %.2f\n", m_totalSystemProfit);
