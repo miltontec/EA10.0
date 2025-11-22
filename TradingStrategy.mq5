@@ -1072,6 +1072,26 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
         Print("🔍 OnTradeTransaction: TRADE_TRANSACTION_DEAL_ADD detectado");
         Print("   Deal: ", trans.deal, " | Position: ", trans.position, " | Order: ", trans.order);
 
+        // CRÍTICO: Solo procesar deals de CIERRE, no de apertura
+        if(!HistoryDealSelect(trans.deal))
+        {
+            Print("   ❌ No se pudo seleccionar deal en historial");
+            return;
+        }
+
+        ENUM_DEAL_ENTRY dealEntry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(trans.deal, DEAL_ENTRY);
+
+        Print("   📋 Deal entry type: ", EnumToString(dealEntry));
+
+        // Solo procesar deals de cierre (DEAL_ENTRY_OUT o DEAL_ENTRY_OUT_BY)
+        if(dealEntry != DEAL_ENTRY_OUT && dealEntry != DEAL_ENTRY_OUT_BY)
+        {
+            Print("   ⏭ Deal de apertura detectado - IGNORANDO (esperando cierre)");
+            return;
+        }
+
+        Print("   ✅ Deal de CIERRE confirmado - procesando...");
+
         if(g_votingStats == NULL) {
             Print("   ❌ g_votingStats es NULL - no se pueden actualizar métricas");
             return;
@@ -1091,13 +1111,10 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
         {
             Print("   ✅ FindAndRemoveTradeInfo ENCONTRÓ el trade!");
 
-            // Obtener información del deal
-            if(HistoryDealSelect(trans.deal))
-            {
-                double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT);
-                bool won = (profit > 0);
+            double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT);
+            bool won = (profit > 0);
 
-                Print("   💰 Profit: ", profit, " | Won: ", won);
+            Print("   💰 Profit: ", profit, " | Won: ", won);
 
                 // Calcular métricas
                 int bars = (int)((TimeCurrent() - closedTrade.openTime) / PeriodSeconds(PERIOD_CURRENT));
