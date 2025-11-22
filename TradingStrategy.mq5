@@ -514,7 +514,20 @@ void SaveEnhancedTradeInfo(ulong ticket, ENUM_VOTE_DIRECTION &votes[], double &c
 }
 
 //+------------------------------------------------------------------+
-//| Buscar y eliminar trade info                                    |
+//| Buscar trade info SIN remover (para OnTradeTransaction)         |
+//+------------------------------------------------------------------+
+bool FindTradeInfo(ulong ticket, EnhancedTradeInfo &foundInfo) {
+    for(int i = 0; i < ArraySize(g_enhancedTrades); i++) {
+        if(g_enhancedTrades[i].ticket == ticket) {
+            foundInfo = g_enhancedTrades[i];
+            return true;
+        }
+    }
+    return false;
+}
+
+//+------------------------------------------------------------------+
+//| Buscar y eliminar trade info (para ProcessCycleComplete)        |
 //+------------------------------------------------------------------+
 bool FindAndRemoveTradeInfo(ulong ticket, EnhancedTradeInfo &foundInfo) {
     for(int i = 0; i < ArraySize(g_enhancedTrades); i++) {
@@ -1113,11 +1126,11 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
             return;
         }
 
-        // Buscar si este deal corresponde a un trade que trackeamos
+        // Buscar trade info SIN remover (ProcessCycleComplete lo removerá)
         EnhancedTradeInfo closedTrade;
-        if(FindAndRemoveTradeInfo(trans.position, closedTrade))
+        if(FindTradeInfo(trans.position, closedTrade))
         {
-            Print("   ✅ FindAndRemoveTradeInfo ENCONTRÓ el trade!");
+            Print("   ✅ FindTradeInfo ENCONTRÓ el trade (sin remover)");
 
             double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT);
             bool won = (profit > 0);
@@ -1137,19 +1150,14 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
                 mae = MathAbs(profit) * 0.3;
             }
 
-            // Actualizar performance de cada indicador que votó
-            Print("   📊 Actualizando métricas para 8 indicadores...");
+            // Actualizar VOTING STATISTICS (Sistema de 8 indicadores)
+            Print("   📊 Actualizando VotingStatistics (Enhanced System)...");
             int indicatorsUpdated = 0;
 
             for(int i = 0; i < 8; i++)
             {
-                Print("      Indicador [", i, "] Vote:", EnumToString(closedTrade.votes[i]),
-                      " Conf:", closedTrade.confidences[i]);
-
                 if(closedTrade.votes[i] != VOTE_NEUTRAL && closedTrade.confidences[i] > 0.05)
                 {
-                    Print("      ✅ Llamando UpdatePerformance para indicador ", i);
-
                     g_votingStats.UpdatePerformance(
                         i,                      // ID del indicador
                         closedTrade.context,    // Contexto
@@ -1163,13 +1171,9 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 
                     indicatorsUpdated++;
                 }
-                else
-                {
-                    Print("      ⏭ Indicador ", i, " omitido (neutral o confianza baja)");
-                }
             }
 
-            Print("   ✅ Métricas actualizadas para ", indicatorsUpdated, " indicadores");
+            Print("   ✅ VotingStatistics actualizado - ", indicatorsUpdated, " indicadores");
 
             // Mostrar estadísticas cada 10 trades
             static int tradeCount = 0;
@@ -1184,8 +1188,8 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
         }
         else
         {
-            Print("   ❌ FindAndRemoveTradeInfo NO encontró trade para position: ", trans.position);
-            Print("   ℹ️ Esto significa que el ticket NO fue guardado en g_enhancedTrades[]");
+            Print("   ⚠️ FindTradeInfo NO encontró trade para position: ", trans.position);
+            Print("   ℹ️ Posiblemente sea un trade manual o sin votos capturados");
         }
     }
 }
@@ -2374,85 +2378,25 @@ void ProcessCycleComplete()
         Print("✓ Ciclo registrado en RegimeDetector - ", g_orderExecution.m_multiOrder.orderCount, " trades");
     }
 
-    // 1. ACTUALIZAR ENHANCED VOTING STATISTICS
-    if(g_votingStats != NULL)
+    // 1. LIMPIAR g_enhancedTrades[] (VotingStatistics ya fue actualizado en OnTradeTransaction)
+    Print("🧹 Limpiando g_enhancedTrades[] - OnTradeTransaction ya actualizó VotingStatistics");
+
+    int tradesRemoved = 0;
+    for(int i = 0; i < g_orderExecution.m_multiOrder.orderCount; i++)
     {
-        Print("📊 Actualizando Enhanced Voting Statistics...");
+        ulong cycleTicket = g_orderExecution.m_multiOrder.tickets[i];
+        if(cycleTicket == 0) continue;
 
-        // Buscar todos los trades de este ciclo en g_enhancedTrades[]
-        int tradesUpdated = 0;
-
-        for(int i = 0; i < g_orderExecution.m_multiOrder.orderCount; i++)
+        // Remover de g_enhancedTrades[] usando FindAndRemoveTradeInfo
+        EnhancedTradeInfo dummyInfo;
+        if(FindAndRemoveTradeInfo(cycleTicket, dummyInfo))
         {
-            ulong cycleTicket = g_orderExecution.m_multiOrder.tickets[i];
-            if(cycleTicket == 0) continue;
-
-            // Buscar este ticket en g_enhancedTrades[]
-            for(int j = 0; j < ArraySize(g_enhancedTrades); j++)
-            {
-                if(g_enhancedTrades[j].ticket == cycleTicket)
-                {
-                    Print("   ✓ Encontrado trade ", cycleTicket, " en g_enhancedTrades[", j, "]");
-
-                    // Calcular profit de esta orden específica
-                    double orderProfit = cycleProfit / MathMax(1, g_orderExecution.m_multiOrder.orderCount);
-                    bool won = success;
-
-                    // Calcular duración en barras
-                    int bars = (int)((TimeCurrent() - g_enhancedTrades[j].openTime) / PeriodSeconds(PERIOD_CURRENT));
-
-                    // MAE y MFE simplificados
-                    double mae = won ? MathAbs(orderProfit) * 0.3 : MathAbs(orderProfit) * 1.5;
-                    double mfe = MathAbs(orderProfit);
-
-                    Print("   💰 Profit: ", orderProfit, " | Won: ", won, " | Bars: ", bars);
-
-                    // Actualizar cada indicador que votó
-                    int indicatorsUpdated = 0;
-                    for(int ind = 0; ind < 8; ind++)
-                    {
-                        if(g_enhancedTrades[j].votes[ind] != VOTE_NEUTRAL &&
-                           g_enhancedTrades[j].confidences[ind] > 0.05)
-                        {
-                            Print("      → Actualizando indicador ", ind, ": ",
-                                  EnumToString(g_enhancedTrades[j].votes[ind]),
-                                  " (conf: ", g_enhancedTrades[j].confidences[ind], ")");
-
-                            g_votingStats.UpdatePerformance(
-                                ind,
-                                g_enhancedTrades[j].context,
-                                g_enhancedTrades[j].votes[ind],
-                                won,
-                                orderProfit,
-                                bars,
-                                mae,
-                                mfe
-                            );
-
-                            indicatorsUpdated++;
-                        }
-                    }
-
-                    Print("   ✅ ", indicatorsUpdated, " indicadores actualizados para trade ", cycleTicket);
-
-                    // Remover de g_enhancedTrades[] para no procesar dos veces
-                    for(int k = j; k < ArraySize(g_enhancedTrades) - 1; k++) {
-                        g_enhancedTrades[k] = g_enhancedTrades[k + 1];
-                    }
-                    ArrayResize(g_enhancedTrades, ArraySize(g_enhancedTrades) - 1);
-
-                    tradesUpdated++;
-                    break;  // Encontrado, salir del loop interno
-                }
-            }
+            tradesRemoved++;
+            Print("   ✓ Removido trade ", cycleTicket, " de g_enhancedTrades[]");
         }
+    }
 
-        Print("✅ Enhanced Voting Statistics actualizado - ", tradesUpdated, " trades procesados");
-    }
-    else
-    {
-        Print("⚠ g_votingStats es NULL - no se pueden actualizar métricas");
-    }
+    Print("✅ g_enhancedTrades[] limpiado - ", tradesRemoved, " trades removidos");
 
     // 1.5. ACTUALIZAR ESTADÍSTICAS DE AGENTES DEL OLD SYSTEM (para que el reporte horario funcione)
     if(g_metaLearning != NULL)
