@@ -618,6 +618,13 @@ void CaptureVotesForEnhancedSystem(ulong ticket)
     SaveEnhancedTradeInfo(ticket, votes, confidences, currentContext);
 
     Print("✓ Votos capturados para Enhanced Voting System - Ticket: ", ticket);
+
+    // DEBUG: Mostrar votos capturados
+    for(int i = 0; i < 8; i++) {
+        if(votes[i] != VOTE_NEUTRAL) {
+            Print("   Indicador ", i, ": ", EnumToString(votes[i]), " (conf: ", confidences[i], ")");
+        }
+    }
 }
 
 //+------------------------------------------------------------------+
@@ -1062,17 +1069,35 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
     // Detectar cierre de posición o deal completado
     if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
     {
-        if(g_votingStats == NULL) return;
+        Print("🔍 OnTradeTransaction: TRADE_TRANSACTION_DEAL_ADD detectado");
+        Print("   Deal: ", trans.deal, " | Position: ", trans.position, " | Order: ", trans.order);
+
+        if(g_votingStats == NULL) {
+            Print("   ❌ g_votingStats es NULL - no se pueden actualizar métricas");
+            return;
+        }
+
+        Print("   📊 Buscando trade info para position ticket: ", trans.position);
+        Print("   📊 g_enhancedTrades tiene ", ArraySize(g_enhancedTrades), " trades guardados");
+
+        // Debug: Mostrar todos los tickets guardados
+        for(int i = 0; i < ArraySize(g_enhancedTrades); i++) {
+            Print("      [", i, "] Ticket guardado: ", g_enhancedTrades[i].ticket);
+        }
 
         // Buscar si este deal corresponde a un trade que trackeamos
         EnhancedTradeInfo closedTrade;
         if(FindAndRemoveTradeInfo(trans.position, closedTrade))
         {
+            Print("   ✅ FindAndRemoveTradeInfo ENCONTRÓ el trade!");
+
             // Obtener información del deal
             if(HistoryDealSelect(trans.deal))
             {
                 double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT);
                 bool won = (profit > 0);
+
+                Print("   💰 Profit: ", profit, " | Won: ", won);
 
                 // Calcular métricas
                 int bars = (int)((TimeCurrent() - closedTrade.openTime) / PeriodSeconds(PERIOD_CURRENT));
@@ -1088,10 +1113,18 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
                 }
 
                 // Actualizar performance de cada indicador que votó
+                Print("   📊 Actualizando métricas para 8 indicadores...");
+                int indicatorsUpdated = 0;
+
                 for(int i = 0; i < 8; i++)
                 {
+                    Print("      Indicador [", i, "] Vote:", EnumToString(closedTrade.votes[i]),
+                          " Conf:", closedTrade.confidences[i]);
+
                     if(closedTrade.votes[i] != VOTE_NEUTRAL && closedTrade.confidences[i] > 0.05)
                     {
+                        Print("      ✅ Llamando UpdatePerformance para indicador ", i);
+
                         g_votingStats.UpdatePerformance(
                             i,                      // ID del indicador
                             closedTrade.context,    // Contexto
@@ -1102,8 +1135,16 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
                             mae,                    // MAE
                             mfe                     // MFE
                         );
+
+                        indicatorsUpdated++;
+                    }
+                    else
+                    {
+                        Print("      ⏭ Indicador ", i, " omitido (neutral o confianza baja)");
                     }
                 }
+
+                Print("   ✅ Métricas actualizadas para ", indicatorsUpdated, " indicadores");
 
                 // Mostrar estadísticas cada 10 trades
                 static int tradeCount = 0;
@@ -1113,6 +1154,15 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
                     Print("\n", g_votingStats.GetSystemStatistics());
                 }
             }
+            else
+            {
+                Print("   ❌ HistoryDealSelect falló para deal: ", trans.deal);
+            }
+        }
+        else
+        {
+            Print("   ❌ FindAndRemoveTradeInfo NO encontró trade para position: ", trans.position);
+            Print("   ℹ️ Esto significa que el ticket NO fue guardado en g_enhancedTrades[]");
         }
     }
 }

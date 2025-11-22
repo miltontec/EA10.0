@@ -2524,31 +2524,50 @@ bool OrderExecution::ExecuteMarketOrder(int direction, double lotSize,
         // OnTradeTransaction usa trans.position (position ID), no order ID
         ulong position_ticket = 0;
 
-        // Esperar brevemente para que la posición se registre
-        Sleep(50);
+        Print("📊 ExecuteMarketOrder exitoso - Order ticket: ", order_ticket);
 
-        // Intentar obtener el position ticket de la posición recién abierta
-        // Buscar posición con el mismo magic number que acabamos de abrir
-        for(int i = PositionsTotal() - 1; i >= 0; i--)
+        // En MQL5, ResultOrder() devuelve el order ticket
+        // Necesitamos buscar la posición que acaba de abrirse
+        // Intentamos varias estrategias:
+
+        // Estrategia 1: Buscar por order ticket (funciona en la mayoría de casos)
+        if(PositionSelectByTicket(order_ticket))
         {
-            ulong pos_ticket = PositionGetTicket(i);
-            if(pos_ticket > 0)
+            position_ticket = PositionGetInteger(POSITION_TICKET);
+            Print("✓ Position ticket obtenido por order ticket: ", position_ticket, " (order: ", order_ticket, ")");
+        }
+        else
+        {
+            // Estrategia 2: Buscar la posición más reciente con nuestro magic number
+            Print("⚠ No se pudo seleccionar posición por order ticket, buscando por magic number...");
+
+            for(int i = PositionsTotal() - 1; i >= 0; i--)
             {
-                if(PositionGetInteger(POSITION_MAGIC) == m_magicNumber &&
-                   PositionGetString(POSITION_SYMBOL) == _Symbol)
+                ulong pos_ticket = PositionGetTicket(i);
+                if(pos_ticket > 0)
                 {
-                    position_ticket = pos_ticket;
-                    Print("✓ Position ticket obtenido: ", position_ticket, " (order: ", order_ticket, ")");
-                    break;
+                    if(PositionGetInteger(POSITION_MAGIC) == m_magicNumber &&
+                       PositionGetString(POSITION_SYMBOL) == _Symbol)
+                    {
+                        // Verificar que sea una posición nueva (tiempo de apertura reciente)
+                        datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
+                        if(TimeCurrent() - openTime < 60)  // Abierta hace menos de 60 segundos
+                        {
+                            position_ticket = pos_ticket;
+                            Print("✓ Position ticket obtenido por magic number: ", position_ticket);
+                            break;
+                        }
+                    }
                 }
             }
         }
 
-        // Si no encontramos position ticket, usar order ticket como fallback
+        // Estrategia 3: Fallback - usar order ticket directamente
         if(position_ticket == 0)
         {
             position_ticket = order_ticket;
             Print("⚠ Usando order ticket como fallback: ", order_ticket);
+            Print("   ADVERTENCIA: Si las métricas no se actualizan, este es el problema");
         }
 
         int idx = m_multiOrder.orderCount;
