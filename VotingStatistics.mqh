@@ -52,12 +52,12 @@ enum ENUM_VOTE_DIRECTION {
     VOTE_STRONG_BUY = 2
 };
 
-// Tipos de indicadores
+// Tipos de indicadores (renombrados para evitar conflicto con built-ins)
 enum ENUM_INDICATOR_TYPE {
     IND_SUPPORT_RESIST = 0,
     IND_ML_SYSTEM = 1,
-    IND_MOMENTUM = 2,
-    IND_RSI = 3,
+    IND_MOMENTUM_VOTING = 2,  // Renombrado de IND_MOMENTUM
+    IND_RSI_VOTING = 3,       // Renombrado de IND_RSI
     IND_VOLUME = 4,
     IND_PATTERN = 5,
     IND_INSTITUTIONAL = 6,
@@ -582,21 +582,20 @@ struct EnhancedIndicatorSpecialization {
         double alpha = GetLearningAlpha();
         
         switch(regime) {
-            case REGIME_TRENDING_STRONG:
-            case REGIME_TRENDING_MODERATE:
+            case REGIME_TRENDING_UP:
+            case REGIME_TRENDING_DOWN:
                 trendingMarketScore = (1 - alpha) * trendingMarketScore + alpha * performance;
                 break;
-                
+
             case REGIME_RANGING:
-            case REGIME_CHOPPY:
                 rangingMarketScore = (1 - alpha) * rangingMarketScore + alpha * performance;
                 break;
-                
+
             case REGIME_VOLATILE:
-            case REGIME_EXTREME:
+            case REGIME_CRISIS:
                 volatileMarketScore = (1 - alpha) * volatileMarketScore + alpha * performance;
                 break;
-                
+
             default:
                 calmMarketScore = (1 - alpha) * calmMarketScore + alpha * performance;
         }
@@ -828,19 +827,20 @@ public:
         int vol = MathMin(4, (int)context.volatility);
         int dir = MathMin(4, (int)context.direction + 2); // Ajustar por valores negativos
         
-        // Actualizar celda de performance
-        EnhancedPerformanceCell* cell = GetPointer(m_performanceMatrix[indicatorId][ses][vol][dir]);
-        cell.metrics.UpdateMetrics(vote, won, profit, bars, mae, mfe);
-        cell.sampleSize++;
-        cell.lastUpdate = TimeCurrent();
-        cell.UpdateExpertiseLevel();
+        // Actualizar celda de performance (acceso directo sin puntero)
+        m_performanceMatrix[indicatorId][ses][vol][dir].metrics.UpdateMetrics(vote, won, profit, bars, mae, mfe);
+        m_performanceMatrix[indicatorId][ses][vol][dir].sampleSize++;
+        m_performanceMatrix[indicatorId][ses][vol][dir].lastUpdate = TimeCurrent();
+        m_performanceMatrix[indicatorId][ses][vol][dir].UpdateExpertiseLevel();
         
         // Actualizar hora de entrada
         int hour = TimeHour(TimeCurrent());
         if(won) {
-            cell.hourlyWinRate[hour] = (cell.hourlyWinRate[hour] + 1.0) / 2.0;
+            m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] =
+                (m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] + 1.0) / 2.0;
         } else {
-            cell.hourlyWinRate[hour] = cell.hourlyWinRate[hour] / 2.0;
+            m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] =
+                m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] / 2.0;
         }
         
         // Actualizar especialización global
@@ -880,16 +880,14 @@ public:
         int ses = MathMin(4, (int)context.session);
         int vol = MathMin(4, (int)context.volatility);
         int dir = MathMin(4, (int)context.direction + 2);
-        
-        EnhancedPerformanceCell* cell = GetPointer(m_performanceMatrix[indicatorId][ses][vol][dir]);
-        
-        // Calcular score de recomendación
-        double dirStrength = cell.metrics.GetDirectionalStrength(direction);
-        double expertiseMultiplier = cell.GetExpertiseMultiplier();
+
+        // Calcular score de recomendación (acceso directo sin puntero)
+        double dirStrength = m_performanceMatrix[indicatorId][ses][vol][dir].metrics.GetDirectionalStrength(direction);
+        double expertiseMultiplier = m_performanceMatrix[indicatorId][ses][vol][dir].GetExpertiseMultiplier();
         double trustScore = m_specializations[indicatorId].trustScore;
-        
+
         // Score considerando el momentum actual
-        double momentumBonus = (cell.metrics.performanceMomentum > 0) ? 1.1 : 0.9;
+        double momentumBonus = (m_performanceMatrix[indicatorId][ses][vol][dir].metrics.performanceMomentum > 0) ? 1.1 : 0.9;
         
         // Score final
         double recommendation = dirStrength * expertiseMultiplier * trustScore * momentumBonus;
@@ -905,7 +903,7 @@ public:
     //+------------------------------------------------------------------+
     //| Resolver conflictos entre indicadores                           |
     //+------------------------------------------------------------------+
-    ENUM_VOTE_DIRECTION ResolveConflict(ENUM_VOTE_DIRECTION votes[], double confidences[], int count) {
+    ENUM_VOTE_DIRECTION ResolveConflict(ENUM_VOTE_DIRECTION &votes[], double &confidences[], int count) {
         if(count <= 0) return VOTE_NEUTRAL;
         
         // Contar votos por dirección
@@ -992,21 +990,19 @@ public:
         // Mostrar ranking
         for(int i = 0; i < 8; i++) {
             int idx = indices[i];
-            EnhancedIndicatorSpecialization* spec = GetPointer(m_specializations[idx]);
-            DirectionalMetrics* metrics = GetPointer(spec.globalMetrics);
-            
+
             string medal = "";
             if(i == 0) medal = "🥇";
             else if(i == 1) medal = "🥈";
             else if(i == 2) medal = "🥉";
             else medal = StringFormat("%d.", i + 1);
-            
-            stats += StringFormat("%s %s\n", medal, spec.indicatorName);
-            stats += StringFormat("   ├─ Trust: %.1f%% | ", spec.trustScore * 100);
-            stats += StringFormat("BUY WR: %.1f%% | ", metrics.buyWinRate * 100);
-            stats += StringFormat("SELL WR: %.1f%%\n", metrics.sellWinRate * 100);
-            stats += StringFormat("   └─ Momentum: %+.2f | ", metrics.performanceMomentum);
-            stats += StringFormat("Confidence: %.1f%%\n\n", metrics.confidenceScore * 100);
+
+            stats += StringFormat("%s %s\n", medal, m_specializations[idx].indicatorName);
+            stats += StringFormat("   ├─ Trust: %.1f%% | ", m_specializations[idx].trustScore * 100);
+            stats += StringFormat("BUY WR: %.1f%% | ", m_specializations[idx].globalMetrics.buyWinRate * 100);
+            stats += StringFormat("SELL WR: %.1f%%\n", m_specializations[idx].globalMetrics.sellWinRate * 100);
+            stats += StringFormat("   └─ Momentum: %+.2f | ", m_specializations[idx].globalMetrics.performanceMomentum);
+            stats += StringFormat("Confidence: %.1f%%\n\n", m_specializations[idx].globalMetrics.confidenceScore * 100);
         }
         
         // Contexto actual
@@ -1035,19 +1031,20 @@ private:
     //| Calcular peso base del indicador                                |
     //+------------------------------------------------------------------+
     double CalculateBaseWeight(int indicatorId) {
-        DirectionalMetrics* metrics = GetPointer(m_specializations[indicatorId].globalMetrics);
-        
-        // Peso base según performance general
-        double avgWinRate = (metrics.buyWinRate + metrics.sellWinRate) / 2;
-        double avgPF = (metrics.buyProfitFactor + metrics.sellProfitFactor) / 2;
-        
+        // Peso base según performance general (acceso directo sin puntero)
+        double avgWinRate = (m_specializations[indicatorId].globalMetrics.buyWinRate +
+                            m_specializations[indicatorId].globalMetrics.sellWinRate) / 2;
+        double avgPF = (m_specializations[indicatorId].globalMetrics.buyProfitFactor +
+                       m_specializations[indicatorId].globalMetrics.sellProfitFactor) / 2;
+
         double weight = 0.1; // Peso mínimo
-        
+
         if(avgWinRate > 0.5) weight += (avgWinRate - 0.5) * 0.4;
         if(avgPF > 1.0) weight += MathMin(0.3, (avgPF - 1.0) * 0.15);
-        
+
         // Bonus por experiencia
-        int totalTrades = metrics.buyTrades + metrics.sellTrades;
+        int totalTrades = m_specializations[indicatorId].globalMetrics.buyTrades +
+                         m_specializations[indicatorId].globalMetrics.sellTrades;
         if(totalTrades > 100) weight += 0.1;
         if(totalTrades > 500) weight += 0.1;
         
@@ -1066,14 +1063,15 @@ private:
         // Bonus parcial por tipo de mercado
         double marketBonus = 0.0;
         switch(context.regime) {
-            case REGIME_TRENDING_STRONG:
-            case REGIME_TRENDING_MODERATE:
+            case REGIME_TRENDING_UP:
+            case REGIME_TRENDING_DOWN:
                 marketBonus = (m_specializations[indicatorId].trendingMarketScore - 0.5) * 0.4;
                 break;
             case REGIME_RANGING:
                 marketBonus = (m_specializations[indicatorId].rangingMarketScore - 0.5) * 0.4;
                 break;
             case REGIME_VOLATILE:
+            case REGIME_CRISIS:
                 marketBonus = (m_specializations[indicatorId].volatileMarketScore - 0.5) * 0.4;
                 break;
         }
@@ -1085,15 +1083,13 @@ private:
     //| Calcular bonus por performance reciente                         |
     //+------------------------------------------------------------------+
     double CalculatePerformanceBonus(int indicatorId) {
-        DirectionalMetrics* metrics = GetPointer(m_specializations[indicatorId].globalMetrics);
-        
-        // Bonus por momentum positivo
-        if(metrics.performanceMomentum > 0) {
-            return metrics.performanceMomentum * 0.2;
+        // Bonus por momentum positivo (acceso directo sin puntero)
+        if(m_specializations[indicatorId].globalMetrics.performanceMomentum > 0) {
+            return m_specializations[indicatorId].globalMetrics.performanceMomentum * 0.2;
         }
-        
+
         // Penalización por momentum negativo
-        return metrics.performanceMomentum * 0.1;
+        return m_specializations[indicatorId].globalMetrics.performanceMomentum * 0.1;
     }
     
     //+------------------------------------------------------------------+
@@ -1251,12 +1247,11 @@ private:
             for(int ses = 0; ses < 5; ses++) {
                 for(int vol = 0; vol < 5; vol++) {
                     for(int dir = 0; dir < 5; dir++) {
-                        EnhancedPerformanceCell* cell = GetPointer(m_performanceMatrix[ind][ses][vol][dir]);
-                        
-                        // Solo aplicar decay a celdas con datos antiguos
-                        if(TimeCurrent() - cell.lastUpdate > 86400 * 7) { // Más de 7 días
-                            cell.metrics.confidenceScore *= decayFactor;
-                            cell.metrics.recentWinRate = (cell.metrics.recentWinRate + 0.5) / 2;
+                        // Solo aplicar decay a celdas con datos antiguos (acceso directo sin puntero)
+                        if(TimeCurrent() - m_performanceMatrix[ind][ses][vol][dir].lastUpdate > 86400 * 7) { // Más de 7 días
+                            m_performanceMatrix[ind][ses][vol][dir].metrics.confidenceScore *= decayFactor;
+                            m_performanceMatrix[ind][ses][vol][dir].metrics.recentWinRate =
+                                (m_performanceMatrix[ind][ses][vol][dir].metrics.recentWinRate + 0.5) / 2;
                         }
                     }
                 }
@@ -1453,7 +1448,8 @@ private:
             }
         }
     }
-    
+
+public:
     //+------------------------------------------------------------------+
     //| Guardar datos históricos                                        |
     //+------------------------------------------------------------------+
@@ -1477,14 +1473,14 @@ private:
         
         // Guardar matriz de performance (simplificada)
         for(int ind = 0; ind < 8; ind++) {
-            DirectionalMetrics* metrics = GetPointer(m_specializations[ind].globalMetrics);
-            FileWriteInteger(handle, metrics.buyTrades);
-            FileWriteInteger(handle, metrics.buyWins);
-            FileWriteDouble(handle, metrics.buyProfit);
-            FileWriteInteger(handle, metrics.sellTrades);
-            FileWriteInteger(handle, metrics.sellWins);
-            FileWriteDouble(handle, metrics.sellProfit);
-            FileWriteDouble(handle, metrics.confidenceScore);
+            // Guardar métricas (acceso directo sin puntero)
+            FileWriteInteger(handle, m_specializations[ind].globalMetrics.buyTrades);
+            FileWriteInteger(handle, m_specializations[ind].globalMetrics.buyWins);
+            FileWriteDouble(handle, m_specializations[ind].globalMetrics.buyProfit);
+            FileWriteInteger(handle, m_specializations[ind].globalMetrics.sellTrades);
+            FileWriteInteger(handle, m_specializations[ind].globalMetrics.sellWins);
+            FileWriteDouble(handle, m_specializations[ind].globalMetrics.sellProfit);
+            FileWriteDouble(handle, m_specializations[ind].globalMetrics.confidenceScore);
         }
         
         FileClose(handle);
@@ -1519,23 +1515,26 @@ private:
         m_systemWinRate = FileReadDouble(handle);
         m_systemStartTime = (datetime)FileReadLong(handle);
         
-        // Cargar datos básicos de performance
+        // Cargar datos básicos de performance (acceso directo sin puntero)
         for(int ind = 0; ind < 8; ind++) {
-            DirectionalMetrics* metrics = GetPointer(m_specializations[ind].globalMetrics);
-            metrics.buyTrades = FileReadInteger(handle);
-            metrics.buyWins = FileReadInteger(handle);
-            metrics.buyProfit = FileReadDouble(handle);
-            metrics.sellTrades = FileReadInteger(handle);
-            metrics.sellWins = FileReadInteger(handle);
-            metrics.sellProfit = FileReadDouble(handle);
-            metrics.confidenceScore = FileReadDouble(handle);
-            
+            m_specializations[ind].globalMetrics.buyTrades = FileReadInteger(handle);
+            m_specializations[ind].globalMetrics.buyWins = FileReadInteger(handle);
+            m_specializations[ind].globalMetrics.buyProfit = FileReadDouble(handle);
+            m_specializations[ind].globalMetrics.sellTrades = FileReadInteger(handle);
+            m_specializations[ind].globalMetrics.sellWins = FileReadInteger(handle);
+            m_specializations[ind].globalMetrics.sellProfit = FileReadDouble(handle);
+            m_specializations[ind].globalMetrics.confidenceScore = FileReadDouble(handle);
+
             // Recalcular métricas derivadas
-            if(metrics.buyTrades > 0) {
-                metrics.buyWinRate = (double)metrics.buyWins / metrics.buyTrades;
+            if(m_specializations[ind].globalMetrics.buyTrades > 0) {
+                m_specializations[ind].globalMetrics.buyWinRate =
+                    (double)m_specializations[ind].globalMetrics.buyWins /
+                    m_specializations[ind].globalMetrics.buyTrades;
             }
-            if(metrics.sellTrades > 0) {
-                metrics.sellWinRate = (double)metrics.sellWins / metrics.sellTrades;
+            if(m_specializations[ind].globalMetrics.sellTrades > 0) {
+                m_specializations[ind].globalMetrics.sellWinRate =
+                    (double)m_specializations[ind].globalMetrics.sellWins /
+                    m_specializations[ind].globalMetrics.sellTrades;
             }
         }
         
@@ -1581,12 +1580,14 @@ private:
     
     string GetRegimeName(ENUM_MARKET_REGIME regime) {
         switch(regime) {
-            case REGIME_TRENDING_STRONG: return "Tendencia Fuerte";
-            case REGIME_TRENDING_MODERATE: return "Tendencia Moderada";
+            case REGIME_TRENDING_UP: return "Tendencia Alcista";
+            case REGIME_TRENDING_DOWN: return "Tendencia Bajista";
             case REGIME_RANGING: return "Rango";
-            case REGIME_CHOPPY: return "Choppy";
             case REGIME_VOLATILE: return "Volátil";
-            case REGIME_EXTREME: return "Extremo";
+            case REGIME_BREAKOUT: return "Breakout";
+            case REGIME_CRISIS: return "Crisis";
+            case REGIME_LOW_LIQUIDITY: return "Baja Liquidez";
+            case REGIME_TRANSITION: return "Transición";
             default: return "Desconocido";
         }
     }
