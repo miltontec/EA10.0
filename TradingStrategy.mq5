@@ -2448,6 +2448,69 @@ void ProcessCycleComplete()
         Print("⚠ g_votingStats es NULL - no se pueden actualizar métricas");
     }
 
+    // 1.5. ACTUALIZAR ESTADÍSTICAS DE AGENTES DEL OLD SYSTEM (para que el reporte horario funcione)
+    if(g_metaLearning != NULL)
+    {
+        Print("📊 Actualizando estadísticas de agentes (Old System)...");
+
+        // Buscar el VoteTracker para este ciclo
+        int voteIndex = -1;
+        for(int v = g_voteHistoryCount - 1; v >= 0; v--)
+        {
+            if(g_voteHistory[v].consensus_id == g_orderExecution.m_multiOrder.initial_consensus_id)
+            {
+                voteIndex = v;
+                break;
+            }
+        }
+
+        if(voteIndex >= 0)
+        {
+            // Calcular profit por orden para distribuir entre agentes
+            double profitPerAgent = cycleProfit / MathMax(1, g_orderExecution.m_multiOrder.orderCount);
+
+            // Actualizar cada agente que votó
+            int agentsUpdated = 0;
+            for(int i = 0; i < 5; i++)
+            {
+                if(g_voteHistory[voteIndex].agents[i].voted)
+                {
+                    g_metaLearning.m_agentStats[i].trades++;
+
+                    if(success)
+                    {
+                        g_metaLearning.m_agentStats[i].wins++;
+                        g_metaLearning.m_agentStats[i].consecutive_wins++;
+                        g_metaLearning.m_agentStats[i].consecutive_losses = 0;
+                    }
+                    else
+                    {
+                        g_metaLearning.m_agentStats[i].consecutive_losses++;
+                        g_metaLearning.m_agentStats[i].consecutive_wins = 0;
+                    }
+
+                    g_metaLearning.m_agentStats[i].total_profit += profitPerAgent;
+
+                    agentsUpdated++;
+
+                    Print("   ✓ Agente ", i, " actualizado - Trades: ",
+                          g_metaLearning.m_agentStats[i].trades,
+                          " | Wins: ", g_metaLearning.m_agentStats[i].wins);
+                }
+            }
+
+            Print("✅ ", agentsUpdated, " agentes actualizados en Old System");
+
+            // Guardar cambios
+            g_metaLearning.SaveToFiles();
+        }
+        else
+        {
+            Print("⚠ No se encontró VoteTracker para consensus_id: ",
+                  g_orderExecution.m_multiOrder.initial_consensus_id);
+        }
+    }
+
     // 2. PROCESO COMPLETO DE APRENDIZAJE EN METALEARNING
     if(g_metaLearning != NULL)
     {
