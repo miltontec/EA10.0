@@ -2346,10 +2346,86 @@ void ProcessCycleComplete()
         Print("✓ Ciclo registrado en RegimeDetector - ", g_orderExecution.m_multiOrder.orderCount, " trades");
     }
 
-    // 1. ACTUALIZAR VOTINGSTATISTICS
-    // TODO: Método no existe - g_votingStats.UpdateVotingResult(success);
-    Print("✓ VotingStatistics actualizado");
-    
+    // 1. ACTUALIZAR ENHANCED VOTING STATISTICS
+    if(g_votingStats != NULL)
+    {
+        Print("📊 Actualizando Enhanced Voting Statistics...");
+
+        // Buscar todos los trades de este ciclo en g_enhancedTrades[]
+        int tradesUpdated = 0;
+
+        for(int i = 0; i < g_orderExecution.m_multiOrder.orderCount; i++)
+        {
+            ulong cycleTicket = g_orderExecution.m_multiOrder.tickets[i];
+            if(cycleTicket == 0) continue;
+
+            // Buscar este ticket en g_enhancedTrades[]
+            for(int j = 0; j < ArraySize(g_enhancedTrades); j++)
+            {
+                if(g_enhancedTrades[j].ticket == cycleTicket)
+                {
+                    Print("   ✓ Encontrado trade ", cycleTicket, " en g_enhancedTrades[", j, "]");
+
+                    // Calcular profit de esta orden específica
+                    double orderProfit = cycleProfit / MathMax(1, g_orderExecution.m_multiOrder.orderCount);
+                    bool won = success;
+
+                    // Calcular duración en barras
+                    int bars = (int)((TimeCurrent() - g_enhancedTrades[j].openTime) / PeriodSeconds(PERIOD_CURRENT));
+
+                    // MAE y MFE simplificados
+                    double mae = won ? MathAbs(orderProfit) * 0.3 : MathAbs(orderProfit) * 1.5;
+                    double mfe = MathAbs(orderProfit);
+
+                    Print("   💰 Profit: ", orderProfit, " | Won: ", won, " | Bars: ", bars);
+
+                    // Actualizar cada indicador que votó
+                    int indicatorsUpdated = 0;
+                    for(int ind = 0; ind < 8; ind++)
+                    {
+                        if(g_enhancedTrades[j].votes[ind] != VOTE_NEUTRAL &&
+                           g_enhancedTrades[j].confidences[ind] > 0.05)
+                        {
+                            Print("      → Actualizando indicador ", ind, ": ",
+                                  EnumToString(g_enhancedTrades[j].votes[ind]),
+                                  " (conf: ", g_enhancedTrades[j].confidences[ind], ")");
+
+                            g_votingStats.UpdatePerformance(
+                                ind,
+                                g_enhancedTrades[j].context,
+                                g_enhancedTrades[j].votes[ind],
+                                won,
+                                orderProfit,
+                                bars,
+                                mae,
+                                mfe
+                            );
+
+                            indicatorsUpdated++;
+                        }
+                    }
+
+                    Print("   ✅ ", indicatorsUpdated, " indicadores actualizados para trade ", cycleTicket);
+
+                    // Remover de g_enhancedTrades[] para no procesar dos veces
+                    for(int k = j; k < ArraySize(g_enhancedTrades) - 1; k++) {
+                        g_enhancedTrades[k] = g_enhancedTrades[k + 1];
+                    }
+                    ArrayResize(g_enhancedTrades, ArraySize(g_enhancedTrades) - 1);
+
+                    tradesUpdated++;
+                    break;  // Encontrado, salir del loop interno
+                }
+            }
+        }
+
+        Print("✅ Enhanced Voting Statistics actualizado - ", tradesUpdated, " trades procesados");
+    }
+    else
+    {
+        Print("⚠ g_votingStats es NULL - no se pueden actualizar métricas");
+    }
+
     // 2. PROCESO COMPLETO DE APRENDIZAJE EN METALEARNING
     if(g_metaLearning != NULL)
     {
