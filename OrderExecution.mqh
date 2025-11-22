@@ -2517,11 +2517,42 @@ bool OrderExecution::ExecuteMarketOrder(int direction, double lotSize,
     
     if(success)
     {
-        ulong ticket = m_trade.ResultOrder();
+        ulong order_ticket = m_trade.ResultOrder();
         double realPrice = m_trade.ResultPrice();
-        
+
+        // CORRECCIÓN CRÍTICA: Obtener POSITION ticket en lugar de ORDER ticket
+        // OnTradeTransaction usa trans.position (position ID), no order ID
+        ulong position_ticket = 0;
+
+        // Esperar brevemente para que la posición se registre
+        Sleep(50);
+
+        // Intentar obtener el position ticket de la posición recién abierta
+        // Buscar posición con el mismo magic number que acabamos de abrir
+        for(int i = PositionsTotal() - 1; i >= 0; i--)
+        {
+            ulong pos_ticket = PositionGetTicket(i);
+            if(pos_ticket > 0)
+            {
+                if(PositionGetInteger(POSITION_MAGIC) == m_magicNumber &&
+                   PositionGetString(POSITION_SYMBOL) == _Symbol)
+                {
+                    position_ticket = pos_ticket;
+                    Print("✓ Position ticket obtenido: ", position_ticket, " (order: ", order_ticket, ")");
+                    break;
+                }
+            }
+        }
+
+        // Si no encontramos position ticket, usar order ticket como fallback
+        if(position_ticket == 0)
+        {
+            position_ticket = order_ticket;
+            Print("⚠ Usando order ticket como fallback: ", order_ticket);
+        }
+
         int idx = m_multiOrder.orderCount;
-        m_multiOrder.tickets[idx] = ticket;
+        m_multiOrder.tickets[idx] = position_ticket;
         m_multiOrder.lotSizes[idx] = lotSize;
         m_multiOrder.entryPrices[idx] = realPrice;
         m_multiOrder.stopLosses[idx] = stopPrice;
@@ -2548,17 +2579,17 @@ bool OrderExecution::ExecuteMarketOrder(int direction, double lotSize,
         // NUEVO: Registrar en MetaLearning si está disponible
         if(m_metaLearning != NULL && m_multiOrder.consensus_ids[idx] > 0)
         {
-            m_metaLearning.RegisterConsensusOrder(m_multiOrder.consensus_ids[idx], ticket);
-            Print("Orden registrada - Ticket: ", ticket, 
+            m_metaLearning.RegisterConsensusOrder(m_multiOrder.consensus_ids[idx], position_ticket);
+            Print("Orden registrada - Ticket: ", position_ticket,
                   " Consensus ID: ", m_multiOrder.consensus_ids[idx]);
         }
         */
-        
+
         // NUEVO: Guardar en registro local
         if(m_closed_count < ArraySize(m_closed_orders))
         {
             // Pre-registrar la orden para tracking
-            m_closed_orders[m_closed_count].ticket = ticket;
+            m_closed_orders[m_closed_count].ticket = position_ticket;
             m_closed_orders[m_closed_count].consensus_id = m_multiOrder.consensus_ids[idx];
             m_closed_orders[m_closed_count].profit = 0;
             m_closed_orders[m_closed_count].success = false;

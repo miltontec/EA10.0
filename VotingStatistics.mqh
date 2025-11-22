@@ -843,19 +843,22 @@ public:
         m_performanceMatrix[indicatorId][ses][vol][dir].metrics.UpdateMetrics(vote, won, profit, bars, mae, mfe);
         m_performanceMatrix[indicatorId][ses][vol][dir].sampleSize++;
         m_performanceMatrix[indicatorId][ses][vol][dir].lastUpdate = TimeCurrent();
-        //         m_performanceMatrix[indicatorId][ses][vol][dir].UpdateExpertiseLevel();
-        
-        //         // Actualizar hora de entrada
-        //         datetime currentTime = TimeCurrent();
-        //         int hour = TimeHour(currentTime);
-        //         if(won) {
-        //             m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] =
-        //                 (m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] + 1.0) / 2.0;
-        //         } else {
-        //             m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] =
-        //                 m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] / 2.0;
-        //         }
-        
+        m_performanceMatrix[indicatorId][ses][vol][dir].UpdateExpertiseLevel();
+
+        // Actualizar tracking horario
+        MqlDateTime timeStruct;
+        TimeToStruct(TimeCurrent(), timeStruct);
+        int hour = timeStruct.hour;
+        if(hour >= 0 && hour < 24) {
+            if(won) {
+                m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] =
+                    (m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] + 1.0) / 2.0;
+            } else {
+                m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] =
+                    m_performanceMatrix[indicatorId][ses][vol][dir].hourlyWinRate[hour] / 2.0;
+            }
+        }
+
         // Actualizar especialización global
         m_specializations[indicatorId].globalMetrics.UpdateMetrics(vote, won, profit, bars, mae, mfe);
         m_specializations[indicatorId].UpdateMarketTypeScores(context.regime, won ? 1.0 : 0.0);
