@@ -52,6 +52,18 @@ enum ENUM_VOTE_DIRECTION {
     VOTE_STRONG_BUY = 2
 };
 
+// Tipos de componentes/agentes del sistema
+enum ENUM_COMPONENT_TYPE {
+    COMPONENT_SUPPORT_RESIST = 0,
+    COMPONENT_ACCUM_ZONES = 1,
+    COMPONENT_PATTERN_MEMORY = 2,
+    COMPONENT_BREAKOUT_DETECT = 3,
+    COMPONENT_INSTITUTIONAL = 4,
+    COMPONENT_BULLISH = 10,    // Para compatibilidad con otros usos
+    COMPONENT_BEARISH = 11,
+    COMPONENT_NEUTRAL = 12
+};
+
 // Tipos de indicadores (renombrados para evitar conflicto con built-ins)
 enum ENUM_INDICATOR_TYPE {
     IND_SUPPORT_RESIST = 0,

@@ -86,6 +86,43 @@ struct AccumulationContext
 #endif // __ACCUMULATION_CONTEXT__
 
 //+------------------------------------------------------------------+
+//| ConsensusMemory y NeuralConsensusResult                         |
+//+------------------------------------------------------------------+
+#ifndef CONSENSUS_MEMORY_STRUCT_DEFINED
+#define CONSENSUS_MEMORY_STRUCT_DEFINED
+struct ConsensusMemory
+{
+    ulong consensus_id;
+    ulong associated_ticket;
+    datetime timestamp;
+    double consensus_strength;
+    int agent_count;
+    ENUM_VOTE_DIRECTION direction;
+    bool was_successful;
+    double emotional_score;
+    double profit_result;
+    int negotiation_rounds;
+    string dominant_agent;
+    double agreement_level;
+};
+#endif
+
+#ifndef NEURAL_CONSENSUS_RESULT_STRUCT_DEFINED
+#define NEURAL_CONSENSUS_RESULT_STRUCT_DEFINED
+struct NeuralConsensusResult
+{
+    ulong consensus_id;
+    ENUM_VOTE_DIRECTION final_direction;
+    double total_conviction;
+    double consensus_strength;
+    bool strong_consensus;
+    string leading_agent;
+    bool veto_used;
+    string consensus_reasoning;
+};
+#endif
+
+//+------------------------------------------------------------------+
 //| Estructura de episodio completo                                 |
 //+------------------------------------------------------------------+
 
@@ -301,8 +338,8 @@ for(int i = 0; i < 8; i++)
     }
     
     // Crear nuevo episodio al iniciar trade
-    ulong StartNewEpisode(const EM_TouchContext &touch, const AccumulationContext &accum,
-                         const ConsensusMemory &consensus, const NeuralConsensusResult &neural)
+    ulong StartNewEpisode(EM_TouchContext &touch, AccumulationContext &accum,
+                         ConsensusMemory &consensus, NeuralConsensusResult &neural)
     {
         if(m_episodeCount >= m_maxEpisodes)
         {
@@ -368,7 +405,7 @@ for(int i = 0; i < 8; i++)
     }
     
     // Completar episodio con resultado
-    bool CompleteEpisode(ulong episodeId, const CompleteTradeRecord &record, bool success)
+    bool CompleteEpisode(ulong episodeId, CompleteTradeRecord &record, bool success)
     {
         int idx = FindEpisodeById(episodeId);
         if(idx < 0) return false;
@@ -389,7 +426,7 @@ for(int i = 0; i < 8; i++)
     }
     
     // Buscar episodios similares al contexto actual
-    int FindSimilarEpisodes(const EM_TouchContext &touch, const AccumulationContext &accum, 
+    int FindSimilarEpisodes(EM_TouchContext &touch, AccumulationContext &accum, 
                            ENUM_MARKET_REGIME regime, TradingEpisode &results[], int maxResults = 10)
     {
         ArrayResize(results, 0);
@@ -470,7 +507,7 @@ for(int i = 0; i < 8; i++)
     }
     
     // Predecir resultado basado en episodios similares
-    HistoricalPrediction PredictOutcome(const TradingEpisode &similar[], int count)
+    HistoricalPrediction PredictOutcome(TradingEpisode &similar[], int count)
     {
         HistoricalPrediction prediction;
         prediction.successProbability = 0.0;
@@ -605,7 +642,7 @@ private:
     }
     
     // Calcular similitud entre episodios
-    double CalculateSimilarity(const TradingEpisode &e1, const TradingEpisode &e2)
+    double CalculateSimilarity(TradingEpisode &e1, TradingEpisode &e2)
     {
         // Similitud basada en distancia euclidiana del fingerprint
         double distance = 0.0;
@@ -737,7 +774,7 @@ private:
     }
     
     // Gestión de cache
-    string GenerateCacheKey(const EM_TouchContext &touch, const AccumulationContext &accum, 
+    string GenerateCacheKey(EM_TouchContext &touch, AccumulationContext &accum, 
                           ENUM_MARKET_REGIME regime)
     {
         return StringFormat("%d_%d_%d_%d", 
@@ -760,7 +797,7 @@ private:
         return -1;
     }
     
-    void UpdateCache(string key, const TradingEpisode &results[])
+    void UpdateCache(string key, TradingEpisode &results[])
     {
         m_searchCache[m_cacheIndex].key = key;
         m_searchCache[m_cacheIndex].timestamp = TimeCurrent();
@@ -813,7 +850,7 @@ private:
     // ==== IMPLEMENTACIÓN COMPLETA DE GUARDADO/CARGA DE ARCHIVOS ====
     
     // Guardar episodio individual
-    void SaveEpisode(const TradingEpisode &episode)
+    void SaveEpisode(TradingEpisode &episode)
     {
         // Guardar a archivo temporal primero
         string tempFile = m_episodesFile + ".tmp";
@@ -831,7 +868,7 @@ private:
     }
     
     // Escribir episodio a archivo
-    void WriteEpisodeToFile(int handle, const TradingEpisode &episode)
+    void WriteEpisodeToFile(int handle, TradingEpisode &episode)
     {
         // ID y tiempos
         FileWriteLong(handle, episode.episodeId);
@@ -875,7 +912,7 @@ private:
     }
     
     // Funciones auxiliares de escritura
-    void WriteMarketPattern(int handle, const MarketPattern &pattern)
+    void WriteMarketPattern(int handle, MarketPattern &pattern)
     {
         FileWriteLong(handle, pattern.timestamp);
         FileWriteDouble(handle, pattern.volatility);
@@ -902,7 +939,7 @@ private:
         FileWriteLong(handle, pattern.order_ticket);
     }
     
-    void WriteTouchContext(int handle, const EM_TouchContext &touch)
+    void WriteTouchContext(int handle, EM_TouchContext &touch)
     {
         FileWriteInteger(handle, touch.valid ? 1 : 0);
         FileWriteDouble(handle, touch.price);
@@ -926,7 +963,7 @@ private:
         FileWriteInteger(handle, touch.level.quality);
     }
     
-    void WriteAccumulationContext(int handle, const AccumulationContext &accum)
+    void WriteAccumulationContext(int handle, AccumulationContext &accum)
     {
         FileWriteDouble(handle, accum.range);
         FileWriteInteger(handle, accum.barCount);
@@ -939,7 +976,7 @@ private:
         FileWriteInteger(handle, accum.volumeConfirmation ? 1 : 0);
     }
     
-    void WriteConsensusMemory(int handle, const ConsensusMemory &consensus)
+    void WriteConsensusMemory(int handle, ConsensusMemory &consensus)
     {
         FileWriteLong(handle, consensus.consensus_id);
         FileWriteLong(handle, consensus.associated_ticket);
@@ -967,7 +1004,7 @@ private:
         }
     }
     
-    void WriteNeuralResult(int handle, const NeuralConsensusResult &neural)
+    void WriteNeuralResult(int handle, NeuralConsensusResult &neural)
     {
         FileWriteInteger(handle, neural.final_direction);
         FileWriteDouble(handle, neural.consensus_strength);
@@ -988,7 +1025,7 @@ private:
         FileWriteDouble(handle, neural.market_emotion.excitement);
     }
     
-    void WriteTradeRecord(int handle, const CompleteTradeRecord &record)
+    void WriteTradeRecord(int handle, CompleteTradeRecord &record)
     {
         FileWriteLong(handle, record.consensus_id);
         FileWriteLong(handle, record.order_ticket);
@@ -1039,7 +1076,7 @@ private:
     }
     
     // Agregar episodio al archivo principal
-    void AppendEpisodeToMainFile(const TradingEpisode &episode)
+    void AppendEpisodeToMainFile(TradingEpisode &episode)
     {
         int handle = FileOpen(m_episodesFile, FILE_READ|FILE_WRITE|FILE_BIN|FILE_ANSI);
         

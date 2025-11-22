@@ -156,6 +156,21 @@ enum ENUM_EMOTIONAL_ACTION
     ACTION_FULL_EXIT
 };
 
+//+------------------------------------------------------------------+
+//| ESTRUCTURA MarketEmotion para análisis emocional del mercado   |
+//+------------------------------------------------------------------+
+#ifndef MARKET_EMOTION_STRUCT_DEFINED
+#define MARKET_EMOTION_STRUCT_DEFINED
+struct MarketEmotion
+{
+    double fear;
+    double greed;
+    double uncertainty;
+    double excitement;
+    datetime timestamp;
+};
+#endif
+
 
 //+------------------------------------------------------------------+
 //| CLASE PRINCIPAL OrderExecution v11.03                           |
@@ -267,15 +282,15 @@ public:
     double               GetFirstOrderMovement();
     
     // Métodos emocionales
-    void                 UpdateEmotionalContext(const MarketEmotion &emotion);
+    void                 UpdateEmotionalContext(MarketEmotion &emotion);
     ENUM_EMOTIONAL_ACTION AnalyzeEmotionalAction();
     bool                 ExecuteEmotionalAction(ENUM_EMOTIONAL_ACTION action);
     void                 AdjustStopsForEmotion();
     double               GetEmotionalMultiplier();
-    
+
     // Métodos de cálculo
     double               CalculateLotSize(double stopDistance, double conviction);
-    double               CalculateEmotionalLotSize(double baseLot, const MarketEmotion &emotion);
+    double               CalculateEmotionalLotSize(double baseLot, MarketEmotion &emotion);
     double               CalculateReducedLotSize(int orderIndex);
     double               CalculateStopLoss(double entryPrice, int direction, bool isAdditional = false);
     double               CalculateTakeProfit(double entryPrice, int direction);
@@ -1475,7 +1490,7 @@ void OrderExecution::SetEmotionalParams(double fearThreshold, double greedThresh
 //+------------------------------------------------------------------+
 //| Actualizar contexto emocional                                   |
 //+------------------------------------------------------------------+
-void OrderExecution::UpdateEmotionalContext(const MarketEmotion &emotion)
+void OrderExecution::UpdateEmotionalContext(MarketEmotion &emotion)
 {
     m_currentEmotion = emotion;
     
@@ -2045,7 +2060,7 @@ void OrderExecution::AdjustStopsForEmotion()
     }
 }
 
-double OrderExecution::CalculateEmotionalLotSize(double baseLot, const MarketEmotion &emotion)
+double OrderExecution::CalculateEmotionalLotSize(double baseLot, MarketEmotion &emotion)
 {
     double emotionalMultiplier = GetEmotionalMultiplier();
     
